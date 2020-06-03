@@ -1,5 +1,6 @@
 ---
 title: "Third Task - Sample Data Collection"
+author: "Steven Liu; Kangjie Zhang"
 date: "May 31, 2020"
 output:
   html_document:
