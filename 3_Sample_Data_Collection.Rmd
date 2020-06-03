@@ -1,0 +1,240 @@
+---
+title: "Third Task - Sample Data Collection"
+date: "May 31, 2020"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  md_document:
+    df_print: paged
+    toc: yes
+    variant: markdown_github
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## 0 Preparation
+```{r}
+source("functions/utils_kz.R")
+library(readr)
+library(httr)
+library(tidyverse)  
+library(rtweet)
+# tw <- search_tweets("(crisis AND management AND learning) OR
+# (COVID AND management AND learning) OR
+# (pandemic AND management AND learning) OR
+# (course AND migration) OR
+# (COVID AND migration) OR
+# (pandemic AND migration) OR
+# (COVID AND education) OR
+# (pandemic AND education) OR
+# (remote AND instruction) OR
+# (emergency AND instruction) OR
+# (COVID AND migrate AND online) OR
+# (COVID AND pivot AND online) OR
+# (COVID AND higher AND education AND online) OR
+# (COVID AND higher AND education)", lang = "en", include_rts = T, n = 10000, retryonratelimit = TRUE)
+# saveRDS(object = tw, file = "data/tw_31MAY2020.rds")
+```
+
+## 1 Variable Description
+```{r}
+tw <- readRDS("data/tw_31MAY2020.rds")
+users <- users_data(tw)
+tw_variables <- names(tw)
+users_variables <- names(users)
+data_frame(tw_variables)
+data_frame(users_variables)
+```
+
+source: \
+https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object (Variable Description for tweet data)
+https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object (Variable Description for users data) 
+
+## 2 Basic Statistics
+* Total number of tweets
+```{r}
+nrow(tw)
+```
+* Number of unique Tweets 
+```{r}
+unique_tw <- tw$text %>% 
+  plain_tweets() %>% 
+  unique() %>% 
+  length()
+unique_tw
+```
+* Number of unique accounts 
+```{r}
+unique_accounts <- users$user_id %>% 
+  unique() %>% 
+  length()
+unique_accounts
+```
+* Numer of retweets
+```{r}
+table(tw$is_retweet)
+```
+* Number of quoted tweet
+```{r}
+table(tw$is_quote)
+```
+
+## 3 User Demographics
+1. Gender information is not available in twitter. Steven used [COSMOS](http://socialdatalab.net/COSMOS) software to determine the gender by users' first name.
+2. The attribute of users' language setting is no longer supported (deprecated) by twitter.
+
+* Tweets/Accounts Rate (number of tweets per account)
+```{r}
+unique_tw/unique_accounts
+```
+* Devices/App used distribution
+```{r}
+source <- tw$source %>% table()
+source <- data_frame(var = names(source), freq = source) %>% arrange(desc(freq)) 
+others <- data_frame(var = "Others", freq = sum(source[-(1:8),]$freq))
+source <- rbind(source[1:8,], others)
+source %>%
+  ggplot(aes(x = "", y = freq, fill = var)) +
+  geom_col(width = 1) +
+  coord_polar(theta = "y", direction = 1) + 
+  labs(x = NULL, y = NULL, fill = "Utility") +
+  labs(title="Devices/App used distribution") + 
+  theme_minimal()
+```
+
+Geovisualization:
+```{r}
+## create lat/lng variables using all available tweet and profile geo-location data
+tw <- lat_lng(tw)
+countries <- maps::map("world", namesonly = T, plot = F)
+maps::map("world", region = countries[-grep("Antarctica", countries)], lwd = .25)
+with(tw, points(lng, lat, pch = 20, cex = .75, col = rgb(0, .3, .7, .75)))
+```
+
+
+Note that the geolocation information is not available on all tweets. (see the available number below)
+```{r}
+tw$lat %>% is.na() %>% `!` %>% sum()
+```
+## 4 Time span
+```{r}
+## plot time series of tweets
+tw %>%
+  ts_plot("3 hours") +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(plot.title = ggplot2::element_text(face = "bold")) +
+  ggplot2::labs(
+    x = NULL, y = NULL,
+    title = "Frequency of Twitter statuses from past 1-9 days",
+    subtitle = "Twitter status (tweet) counts aggregated using three-hour intervals",
+    caption = "\nSource: Data collected from Twitter's REST API via rtweet"
+  ) 
+```
+
+## 5 Word Frequency Summary
+### Hashtags
+#### Top Hashtags
+```{r}
+ht.top <- tw %>%
+  related_hashtags_freq(upper = T) %>%
+  sort() %>%
+  as.data.frame() 
+## list all hashtags ordered by frequency
+ht.top %>% arrange(desc(Freq))
+## plot top 30 hashtags
+ht.top %>% top_n(30, wt = Freq) %>%
+  ggplot(aes(tags.all, Freq)) +
+  geom_col() +
+  labs(x = "", y = "Number of appearances") +
+  coord_flip()
+```
+
+#### Would cloud for Hashtags
+```{r}
+names(ht.top) <- c("word", "n")
+words.count <- ht.top %>% arrange(desc(n))
+wordcloud(words = words.count$word, freq = words.count$n, 
+          random.order = F, max.words = 200, rot.per = 0.15,
+          colors = brewer.pal(8, "Dark2"))
+```
+
+#### Hashtag cooccurrences 
+
+
+### Keywords
+#### Top Keywords 
+```{r}
+## list all hashtags ordered by frequency
+tw.words <- tw %>% clean_tweets() 
+tw.words %>%
+    count(word, sort = T) 
+## plot top 20 keywords
+tw.words %>% 
+  plot_word_freq(20)
+```
+
+#### Would cloud for Keywords
+```{r}
+words.count <- tw.words %>% count(word, sort = T)
+wordcloud(words = words.count$word, freq = words.count$n, 
+          random.order = F, max.words = 200, rot.per = 0.15,
+          colors = brewer.pal(8, "Dark2"))
+```
+
+#### Keywords cooccurrences
+
+
+
+
+
+## 6 Popular Tweets
+### Most-liked tweets (>100 likes)
+favorite_count: Indicates approximately how many times this Tweet has been liked by Twitter users. \
+The below chuck list the tweets which have more than 100 likes.
+```{r}
+likes <- tw %>% select(text, favorite_count) %>% arrange(desc(favorite_count))
+likes %>%
+  filter(favorite_count>100)
+# Histogram of number of likes
+likes %>% filter(favorite_count>100) %>%
+ggplot(aes(x=favorite_count)) + 
+  geom_histogram(colour="black", fill="white")+
+  labs(title="Histogram of number of likes (>100)", x = "Number of likes") 
+
+# Histogram of number of likes
+likes %>% filter(favorite_count<100) %>%
+ggplot(aes(x=favorite_count)) + 
+  geom_histogram(colour="black", fill="white")+
+  labs(title="Histogram of number of likes (<100)", x = "Number of likes") 
+```
+
+
+### Top retweets (retweeted > 5000 times)
+retweet_count: Number of times this Tweet has been retweeted.\
+The below chuck list the tweets where the number of retweets is greater than 5000 times.
+```{r}
+retweet <- tw %>% select(text, retweet_count) %>% arrange(desc(retweet_count))
+retweet %>%
+  filter(retweet_count>5000)
+# Histogram of number of retweets
+retweet %>%
+  filter(retweet_count>5000) %>%
+  ggplot(aes(x=retweet_count)) + 
+  geom_histogram(colour="black", fill="white")+
+  labs(title="Histogram of number of retweets (>5000)", x = "Number of retweets") 
+
+retweet %>%
+  filter(retweet_count<5000) %>%
+ggplot(aes(x=retweet_count)) + 
+  geom_histogram(colour="black", fill="white")+
+  labs(title="Histogram of number of retweets (<5000)", x = "Number of retweets") 
+```
+
+
+
+
