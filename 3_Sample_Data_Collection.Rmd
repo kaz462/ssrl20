@@ -220,7 +220,8 @@ The below chuck list the tweets where the number of retweets is greater than 500
 ```{r}
 retweet <- tw %>% select(text, retweet_count) %>% arrange(desc(retweet_count))
 retweet %>%
-  filter(retweet_count>5000)
+  filter(retweet_count>5000) %>%
+  unique()
 # Histogram of number of retweets
 retweet %>%
   filter(retweet_count>5000) %>%
