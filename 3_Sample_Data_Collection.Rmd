@@ -20,7 +20,8 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 ## 0 Preparation
 ```{r}
-source("functions/utils_kz.R")
+source("R/utils_kz.R")
+library(igraph)
 library(readr)
 library(httr)
 library(tidyverse)  
@@ -41,6 +42,39 @@ library(rtweet)
 # (COVID AND higher AND education)", lang = "en", include_rts = T, n = 10000, retryonratelimit = TRUE)
 # saveRDS(object = tw, file = "data/tw_31MAY2020.rds")
 ```
+
+```{Rcpp}
+#include <Rcpp.h>
+#include <vector>
+#include <string>
+#include <unordered_map>
+
+using namespace Rcpp;
+
+inline std::unordered_map<String, int> getHashtagsTable(StringVector &hashtags_unique) {
+  std::unordered_map<String, int> table(hashtags_unique.size());
+  for (int i = 0; i < hashtags_unique.size(); i++) {
+    table[hashtags_unique[i]] = i;
+  }
+  return table;
+}
+
+// [[Rcpp::export]]
+NumericMatrix getCoOccurrenceMatrix(List &hashtags_list, StringVector &hashtags_unique) {
+  std::unordered_map<String, int> hashtags_table = getHashtagsTable(hashtags_unique);
+  NumericMatrix adj(hashtags_table.size());
+  for (int i = 0; i < hashtags_list.size(); i++) {
+    StringVector hashtags = hashtags_list[i];
+    for (int j = 0; j < hashtags.size(); j++) {
+      for (int k = 0; k < hashtags.size(); k++) {
+        adj(hashtags_table[hashtags[j]], hashtags_table[hashtags[k]]) += 1;
+      }
+    }
+  }
+  return adj;
+}
+```
+
 
 ## 1 Variable Description
 ```{r}
@@ -146,7 +180,8 @@ ht.top <- tw %>%
   sort() %>%
   as.data.frame() 
 ## list all hashtags ordered by frequency
-ht.top %>% arrange(desc(Freq))
+top <- ht.top %>% arrange(desc(Freq))
+top 
 ## plot top 30 hashtags
 ht.top %>% top_n(30, wt = Freq) %>%
   ggplot(aes(tags.all, Freq)) +
@@ -165,15 +200,39 @@ wordcloud(words = words.count$word, freq = words.count$n,
 ```
 
 #### Hashtag cooccurrences 
+```{r fig1, out.width = '140%'}
+tw$hashtags <- lapply(tw$hashtags, toupper)
+adj <- getCoOccurrenceMatrix(tw$hashtags, tw$hashtags %>% unlist() %>% unique())
+names <- tw$hashtags %>% unlist() %>% unique()
+colnames(adj) <- names
+rownames(adj) <- names
+ht.net <- 
+  adj %>%
+  graph_from_adjacency_matrix(mode = "undirected", weighted = T, diag = F) 
 
+ht.net <- induced_subgraph(ht.net, as.vector(top$tags.all)[1:20])
+
+graph_attr(ht.net, "layout") <- layout_in_circle
+plot(
+  ht.net,
+  vertex.shape = "none",
+  edge.color = "orange",
+  edge.width = E(ht.net)$weight / 10,
+  vertex.label.dist = 0,
+  vertex.label.color = "steel blue",
+  vertex.label.font = 1.2,
+  vertex.label.cex = .4, 
+  vertex.color = "gray50"
+)
+```
 
 ### Keywords
 #### Top Keywords 
 ```{r}
 ## list all hashtags ordered by frequency
 tw.words <- tw %>% clean_tweets() 
-tw.words %>%
-    count(word, sort = T) 
+topwords <- tw.words %>% count(word, sort = T) 
+topwords
 ## plot top 20 keywords
 tw.words %>% 
   plot_word_freq(20)
@@ -188,6 +247,38 @@ wordcloud(words = words.count$word, freq = words.count$n,
 ```
 
 #### Keywords cooccurrences
+```{r fig2, out.width = '140%'}
+list <- rep(list(NA),nrow(tw))
+for (i in 1:nrow(tw)) {
+  list[i] <- clean_tweets(tw[i,])
+}
+
+list <- lapply(list, toupper)
+adj <- getCoOccurrenceMatrix(list, list %>% unlist() %>% unique())
+names <- list %>% unlist() %>% unique()
+colnames(adj) <- names
+rownames(adj) <- names
+ht.net <- 
+  adj %>%
+  graph_from_adjacency_matrix(mode = "undirected", weighted = T, diag = F) 
+
+ht.net <- induced_subgraph(ht.net, as.vector(toupper(topwords$word)[1:20]))
+
+graph_attr(ht.net, "layout") <- layout_in_circle
+plot(
+  ht.net,
+  vertex.shape = "none",
+  edge.color = "orange",
+  edge.width = E(ht.net)$weight / 6000,
+  vertex.label.dist = 0,
+  vertex.label.color = "steel blue",
+  vertex.label.font = 1.2,
+  vertex.label.cex = .4, 
+  vertex.color = "gray50"
+)
+```
+
+
 
 
 
