@@ -200,18 +200,24 @@ wordcloud(words = words.count$word, freq = words.count$n,
 ```
 
 #### Hashtag cooccurrences 
-```{r fig1, out.width = '140%'}
+
+* Cooccurrences matrix
+```{r}
 tw$hashtags <- lapply(tw$hashtags, toupper)
 adj <- getCoOccurrenceMatrix(tw$hashtags, tw$hashtags %>% unlist() %>% unique())
 names <- tw$hashtags %>% unlist() %>% unique()
 colnames(adj) <- names
 rownames(adj) <- names
+a <- as.vector(top$tags.all)[1:20]
 ht.net <- 
   adj %>%
   graph_from_adjacency_matrix(mode = "undirected", weighted = T, diag = F) 
+ht.net <- induced_subgraph(ht.net, a)
+as_data_frame(ht.net, what="edges") %>% arrange(desc(weight))
+```
 
-ht.net <- induced_subgraph(ht.net, as.vector(top$tags.all)[1:20])
-
+* Cooccurrences network
+```{r fig1, out.width = '140%'}
 graph_attr(ht.net, "layout") <- layout_in_circle
 plot(
   ht.net,
@@ -228,6 +234,7 @@ plot(
 
 ### Keywords
 #### Top Keywords 
+
 ```{r}
 ## list all hashtags ordered by frequency
 tw.words <- tw %>% clean_tweets() 
@@ -247,7 +254,8 @@ wordcloud(words = words.count$word, freq = words.count$n,
 ```
 
 #### Keywords cooccurrences
-```{r fig2, out.width = '140%'}
+* Cooccurrences matrix
+```{r}
 list <- rep(list(NA),nrow(tw))
 for (i in 1:nrow(tw)) {
   list[i] <- clean_tweets(tw[i,])
@@ -258,12 +266,17 @@ adj <- getCoOccurrenceMatrix(list, list %>% unlist() %>% unique())
 names <- list %>% unlist() %>% unique()
 colnames(adj) <- names
 rownames(adj) <- names
+a <- as.vector(toupper(topwords$word)[1:20])
+
 ht.net <- 
   adj %>%
   graph_from_adjacency_matrix(mode = "undirected", weighted = T, diag = F) 
+ht.net <- induced_subgraph(ht.net, a)
+as_data_frame(ht.net, what="edges") %>% arrange(desc(weight))
+```
 
-ht.net <- induced_subgraph(ht.net, as.vector(toupper(topwords$word)[1:20]))
-
+* Cooccurrences network
+```{r fig2, out.width = '140%'}
 graph_attr(ht.net, "layout") <- layout_in_circle
 plot(
   ht.net,
