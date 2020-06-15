@@ -3,25 +3,12 @@
 suppressPackageStartupMessages({
   library(dplyr);
   library(tibble);
-  library(tidytext);
+  #library(tidytext);
   library(ggplot2);
   library(wordcloud);
+  library(stringr)
+  library(tokenizers)
 })
-
-
-sdaway <- function(x) {
-  u <- mean(x); s <- sd(x)
-  c(mean = u, one.sd = u + s, two.sd = u + 2*s)
-}
-
-
-botcheck_roc <- function(b, u, n.step = 100) {
-  cutoff <- seq(0, 1, by = 1/n.step)
-  tpr <- sapply(cutoff, function(x){sum(b > x) / length(b)})  
-  fpr <- sapply(cutoff, function(x){sum(u > x) / length(u)})
-  data.frame(tpr = tpr, fpr = fpr)
-}
-
 
 related_hashtags_freq <- function(tw, upper = FALSE, thres = 0) {
   if (upper) {
@@ -33,44 +20,16 @@ related_hashtags_freq <- function(tw, upper = FALSE, thres = 0) {
   return (tags.freq[tags.freq > thres])
 }
 
-
-get_vars_description <- function() {
-  source("R/feat_def.R")
-  get_vars_description_all()
+get_stopwords <- function() {
+  stopwords <- stopwords::stopwords()
+  stopwords.with.punct <- stopwords[str_detect(stopwords, "'")]
+  stopwords.special <- c("&amp;")
+  c(stopwords, str_replace(stopwords.with.punct, "'", "’"), stopwords.special)
 }
 
-
-timeline_feature_simp <- function(tl) {
-  if (nrow(tl) == 0) {
-    return(tl)
-  } else {
-    vars <- c("user_id", "text", "is_retweet", "retweet_count", "description", 
-              "location", "name", "created_at", "is_quote", "favorite_count",
-              "favourites_count", "source", "verified", "account_created_at", "statuses_count",
-              "followers_count", "friends_count", "listed_count", "screen_name")
-    subset(tl, select = vars)
-  }
+clean_tweets <- function(txt) {
+  tokenize_tweets(txt, stopwords = get_stopwords(), strip_url = T, strip_punct = T, strip_special = T)
 }
-
-
-tag_bots <- function(tw, cri.fast = 0.95, cri.slow = 0.9, cri.ntw = 13) {
-  tw %>% add_column(is.bot = (tw$ntweets > cri.ntw) 
-                    & (tw$pbots2 > cri.slow | tw$pbots1 > cri.fast))
-}
-
-
-clean_tweets <- function(tw) {
-  tibble(txt = tw$text) %>%
-    unnest_tokens(
-      output = word,
-      input = txt,
-      token = "tweets",
-      strip_url = T
-    ) %>%
-    anti_join(get_stopwords(), by = "word") %>%
-    filter(!substr(word, 1, 1) %in% c("#", "@"))  # eliminate hashtags and mentions
-}
-
 
 plot_word_freq <- function(w, ntop = 15) {
   w %>%
@@ -107,4 +66,13 @@ plot_density <- function(data, xname, bins = 30, dens.adjust = 4, fit = "gaussia
                   sd = sd(data[[xname]]))
     ) +
     scale_colour_manual("", values = c("red", "blue"))
+}
+
+sourceCpp("src/hashtag_co_occurrence.cpp")
+get_co_occurrence_matrix <- function(hashtag.list,
+                                     include = hashtag.list %>% unlist() %>% unique()) {
+  adj <- getCoOccurrenceMatrix(hashtag.list, include)
+  colnames(adj) <- include
+  rownames(adj) <- include
+  return(adj)
 }
