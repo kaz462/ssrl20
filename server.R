@@ -26,7 +26,14 @@ source("R/utils.R")
 # (COVID AND higher AND education)", lang = "en", include_rts = T, n = 10000, retryonratelimit = TRUE)
 # saveRDS(object = tw, file = "data/tw_31MAY2020.rds")
 
-tw <- readRDS("data/tw_31MAY2020.rds")
+if (file.exists("data/tw_31MAY2020.rds")) {
+  tw <- readRDS("data/tw_31MAY2020.rds")
+} else {
+  tw <- readRDS(
+    url("https://ssrl20-online-teaching.s3.ca-central-1.amazonaws.com/tw_31MAY2020.rds")
+  )
+}
+
 users <- users_data(tw)
 tw.variables <- names(tw)
 users.variables <- names(users)
@@ -40,8 +47,8 @@ unique.accounts <- users$user_id %>%
 
 # plot1
 source <- table(tw$source)
-source <- data_frame(var = names(source), freq = source) %>% arrange(desc(freq)) 
-others <- data_frame(var = "Others", freq = sum(source[-(1:8),]$freq))
+source <- tibble(var = names(source), freq = source) %>% arrange(desc(freq)) 
+others <- tibble(var = "Others", freq = sum(source[-(1:8),]$freq))
 source <- rbind(source[1:8,], others)
 
 # hashtag
