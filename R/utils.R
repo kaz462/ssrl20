@@ -10,16 +10,6 @@ suppressPackageStartupMessages({
   library(tokenizers)
 })
 
-related_hashtags_freq <- function(tw, upper = FALSE, thres = 0) {
-  if (upper) {
-    tags.all <- toupper(unlist(tw$hashtags))    
-  } else {
-    tags.all <- tolower(unlist(tw$hashtags))  
-  }
-  tags.freq <- table(tags.all)
-  return (tags.freq[tags.freq > thres])
-}
-
 get_stopwords <- function() {
   stopwords <- stopwords::stopwords()
   stopwords.with.punct <- stopwords[str_detect(stopwords, "'")]
@@ -41,7 +31,6 @@ plot_word_freq <- function(w, ntop = 15) {
     labs(x = "", y = "Number of appearances") +
     coord_flip()
 }
-
 
 plot_density <- function(data, xname, bins = 30, dens.adjust = 4, fit = "gaussian") {
   if (fit == "gaussian") {
