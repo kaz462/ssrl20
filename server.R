@@ -46,15 +46,14 @@ source <- rbind(source[1:8,], others)
 
 # hashtag
 tw$hashtags <- lapply(tw$hashtags, toupper)
-ht.top <- tw %>%
-  related_hashtags_freq(upper = T) %>%
-  sort(decreasing = T) %>%
-  as.data.frame() 
+ht.df <- tibble(word = tw$hashtags %>% unlist() %>% na.omit())
+ht.top <- ht.df %>% count(word, sort = T)
+ht.top
 
 # keywords
-tw.words.list <- clean_tweets(tw$text) 
-tw.words.df <- tibble(word = unlist(tw.words.list)) 
-words.top <- count(tw.words.df, word, sort = T)
+words.list <- clean_tweets(tw$text) 
+words.df <- tibble(word = unlist(words.list)) 
+words.top <- words.df %>% count(word, sort = T)
 words.top
 
 shinyServer(function(input, output) {
@@ -113,28 +112,22 @@ shinyServer(function(input, output) {
               colors = brewer.pal(8, "Dark2"))  
   })
   output$hash_freq <- renderPlot({    
-    ht.top %>% top_n(30, wt = Freq) %>%
-      ggplot(aes(tags.all, Freq)) +
-      geom_col() +
-      labs(x = "", y = "Number of appearances") +
-      coord_flip()
+    ht.df %>% plot_word_freq(20)
   })
   
   output$key_cloud <- renderPlot({    
-    words.count <- tw.words.df %>% count(word, sort = T)
+    words.count <- words.df %>% count(word, sort = T)
     wordcloud(words = words.count$word, freq = words.count$n, 
               random.order = F, max.words = 200, rot.per = 0.15,
               colors = brewer.pal(8, "Dark2"))
   })
   output$key_freq <- renderPlot({    
-    tw.words.df %>% 
-      plot_word_freq(20)
+    words.df %>% plot_word_freq(20)
   })  
   
   output$net1 <- renderPlot({    
-    ht.adj <- get_co_occurrence_matrix(tw$hashtags, as.vector(ht.top$tags.all)[1:20])
+    ht.adj <- get_co_occurrence_matrix(tw$hashtags, ht.top$word[1:20])
     ht.net <- graph_from_adjacency_matrix(ht.adj, mode = "undirected", weighted = T, diag = F) 
-    #ht.net <- induced_subgraph(ht.net, as.vector(ht.top$tags.all)[1:20])
     
     graph_attr(ht.net, "layout") <- layout_in_circle
     plot(
@@ -152,16 +145,15 @@ shinyServer(function(input, output) {
   
   
   output$net2 <- renderPlot({
-    ky.adj <- get_co_occurrence_matrix(tw.words.list, as.vector(words.top$word)[1:20])
-    ky.net <- graph_from_adjacency_matrix(ky.adj, mode = "undirected", weighted = T, diag = F) 
-    #ky.net <- induced_subgraph(ky.net, as.vector(words.top$word)[1:20])
-    
-    graph_attr(ky.net, "layout") <- layout_in_circle
+    kw.adj <- get_co_occurrence_matrix(words.list, words.top$word[1:20])
+    kw.net <- graph_from_adjacency_matrix(kw.adj, mode = "undirected", weighted = T, diag = F) 
+
+    graph_attr(kw.net, "layout") <- layout_in_circle
     plot(
-      ky.net,
+      kw.net,
       vertex.shape = "none",
       edge.color = "orange",
-      edge.width = E(ky.net)$weight / 6000,
+      edge.width = E(kw.net)$weight / 6000,
       vertex.label.dist = 0,
       vertex.label.color = "steel blue",
       vertex.label.font = 1.2,
